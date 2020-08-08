@@ -60,10 +60,34 @@ var app = (function () {
     function set_style(node, key, value, important) {
         node.style.setProperty(key, value, important ? 'important' : '');
     }
+    function custom_event(type, detail) {
+        const e = document.createEvent('CustomEvent');
+        e.initCustomEvent(type, false, false, detail);
+        return e;
+    }
 
     let current_component;
     function set_current_component(component) {
         current_component = component;
+    }
+    function get_current_component() {
+        if (!current_component)
+            throw new Error(`Function called outside component initialization`);
+        return current_component;
+    }
+    function createEventDispatcher() {
+        const component = get_current_component();
+        return (type, detail) => {
+            const callbacks = component.$$.callbacks[type];
+            if (callbacks) {
+                // TODO are there situations where events could be dispatched
+                // in a server (non-DOM) environment?
+                const event = custom_event(type, detail);
+                callbacks.slice().forEach(fn => {
+                    fn.call(component, event);
+                });
+            }
+        };
     }
 
     const dirty_components = [];
@@ -437,6 +461,7 @@ var app = (function () {
     function instance$1($$self, $$props, $$invalidate) {
     	let secondsLeft = totalSeconds;
     	let isRunning = false;
+    	const dispatch = createEventDispatcher();
 
     	function startTimer() {
     		$$invalidate(1, isRunning = true);
@@ -449,6 +474,7 @@ var app = (function () {
     					clearInterval(timer);
     					$$invalidate(1, isRunning = false);
     					$$invalidate(0, secondsLeft = totalSeconds);
+    					dispatch("end");
     				}
     			},
     			1000
@@ -513,8 +539,11 @@ var app = (function () {
     	let howto;
     	let t3;
     	let h3;
+    	let t7;
+    	let audio_1;
     	let current;
     	timer = new Timer({});
+    	timer.$on("end", /*timerEnds*/ ctx[1]);
     	howto = new HowTo({});
 
     	return {
@@ -529,8 +558,11 @@ var app = (function () {
     			h3 = element("h3");
 
     			h3.innerHTML = `<a href="https://www.who.int/gpsc/clean_hands_protection/en/">Picture Source</a> 
-  <a href="https://freesound.org/people/metrostock99/sounds/345086/">Sound Source</a>`;
+  <a href="https://samplefocus.com/samples/chime-notification-alert">Sound Source</a>`;
 
+    			t7 = space();
+    			audio_1 = element("audio");
+    			audio_1.innerHTML = `<track kind="captions"><source src="alert.wav">`;
     			attr(h1, "class", "svelte-t08oh0");
     			attr(h3, "class", "svelte-t08oh0");
     		},
@@ -542,6 +574,9 @@ var app = (function () {
     			mount_component(howto, target, anchor);
     			insert(target, t3, anchor);
     			insert(target, h3, anchor);
+    			insert(target, t7, anchor);
+    			insert(target, audio_1, anchor);
+    			/*audio_1_binding*/ ctx[2](audio_1);
     			current = true;
     		},
     		p: noop,
@@ -564,14 +599,34 @@ var app = (function () {
     			destroy_component(howto, detaching);
     			if (detaching) detach(t3);
     			if (detaching) detach(h3);
+    			if (detaching) detach(t7);
+    			if (detaching) detach(audio_1);
+    			/*audio_1_binding*/ ctx[2](null);
     		}
     	};
+    }
+
+    function instance$2($$self, $$props, $$invalidate) {
+    	let audio;
+
+    	function timerEnds(e) {
+    		audio.play();
+    	}
+
+    	function audio_1_binding($$value) {
+    		binding_callbacks[$$value ? "unshift" : "push"](() => {
+    			audio = $$value;
+    			$$invalidate(0, audio);
+    		});
+    	}
+
+    	return [audio, timerEnds, audio_1_binding];
     }
 
     class App extends SvelteComponent {
     	constructor(options) {
     		super();
-    		init(this, options, null, create_fragment$3, safe_not_equal, {});
+    		init(this, options, instance$2, create_fragment$3, safe_not_equal, {});
     	}
     }
 
